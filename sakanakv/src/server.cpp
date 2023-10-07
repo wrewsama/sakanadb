@@ -10,13 +10,13 @@
 
 static void recv_and_reply(int conn_fd) {
     // recv msg from connection socket 
-    char read_buf[64] = {};
+    char read_buf[64];
     ssize_t n = read(conn_fd, read_buf, sizeof(read_buf) - 1);
     if (n < 0) {
         fprintf(stderr, "%s\n", "read() error");
         return;
     }
-    printf("[SERVER]: received msg '%s' from client", read_buf);
+    printf("[SERVER]: received msg '%s' from client\n", read_buf);
 
     // write reply to connection socket
     char write_buf[] = "peko";

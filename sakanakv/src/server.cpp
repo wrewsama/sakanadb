@@ -8,24 +8,80 @@
 #include <sys/socket.h>
 #include <netinet/ip.h>
 
-static void recv_and_reply(int conn_fd) {
-    // recv msg from connection socket 
-    char read_buf[64];
-    ssize_t n = read(conn_fd, read_buf, sizeof(read_buf) - 1);
-    if (n < 0) {
-        fprintf(stderr, "%s\n", "read() error");
-        return;
-    }
-    printf("[SERVER]: received msg '%s' from client\n", read_buf);
-
-    // write reply to connection socket
-    char write_buf[] = "peko";
-    write(conn_fd, write_buf, strlen(write_buf));
-}
+const size_t MAX_MSG_SIZE = 4096;
 
 static void die(const char *msg) {
     fprintf(stderr, "[%d] %s\n", errno, msg);
     abort();
+}
+
+// read exactly size bytes from the fd and shift the buffer ptr accordingly
+static int32_t read_full(int fd, char *buf, size_t size) {
+    while (size > 0) {
+        ssize_t res = read(fd, buf, size);
+        if (res <= 0) {
+            // error or unexpected EOF reached
+            return -1; 
+        }
+
+        size -= (size_t) res;
+        buf += res;
+    }
+    return 0;
+}
+
+// write size bytes from the buffer into the fd
+static int32_t write_all(int fd, char *buf, size_t size) {
+    while (size > 0) {
+        ssize_t res = write(fd, buf, size);
+        if (res <= 0) {
+            // error
+            return -1; 
+        }
+
+        size -= (size_t) res;
+        buf += res;
+    }
+    return 0;
+}
+
+static int32_t handle_req(int conn_fd) {
+    // read header
+    char read_buf[4 + MAX_MSG_SIZE + 1]; // 4 bytes for header, 1 byte for escape char
+    int32_t err = read_full(conn_fd, read_buf, 4);
+    if (err) {
+        printf("read() error");
+        return err;
+    }
+
+    // get the msg length from the header
+    uint32_t len = 0;
+    memcpy(&len, read_buf, 4);
+    if (len > MAX_MSG_SIZE) {
+        printf("message is too long");
+        return -1;
+    }
+
+    // read the msg
+    err = read_full(conn_fd, &read_buf[4], len);
+    if (err) {
+        printf("read() error");
+        return err;
+    }
+
+    // add in the escape char at the end
+    read_buf[4+len] =  '\0';
+
+    // print the msg
+    printf("[SERVER]: received response '%s' from client\n", &read_buf[4]);
+
+    // reply
+    const char reply[] = "peko";
+    char write_buf[4+sizeof(reply)];
+    len = (uint32_t) strlen(reply);
+    memcpy(write_buf, &len, 4); // write the len into the 1st 4 bytes of the write buf
+    memcpy(&write_buf[4], reply, len);
+    return write_all(conn_fd, write_buf, 4+len);
 }
 
 int main() {
@@ -43,7 +99,7 @@ int main() {
     struct sockaddr_in addr = {};
     addr.sin_family = AF_INET;
     addr.sin_port = ntohs(3535); // need to convert port num 3535 to host byte order
-    addr.sin_addr.s_addr = ntohl(0); // same as above, on wildcard addr 0.0.0.0
+    addr.sin_addr.s_addr = ntohl(INADDR_ANY); // same as above, on wildcard addr 0.0.0.0
     int res = bind(server_fd, (const sockaddr *)&addr, sizeof(addr));
     if (res) {
         die("bind()");
@@ -64,7 +120,13 @@ int main() {
             continue;
         }
 
-        recv_and_reply(conn_fd);
+        // serve that connection
+        while (true) {
+            int32_t err = handle_req(conn_fd);
+            if (err) {
+                break;
+            }
+        }
         close(conn_fd);
     }
 

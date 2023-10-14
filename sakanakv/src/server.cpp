@@ -10,6 +10,22 @@
 
 const size_t MAX_MSG_SIZE = 4096;
 
+enum {
+    STATE_REQ = 0,
+    STATE_RES = 1,
+    STATE_END = 2
+};
+
+struct Conn {
+    int fd = -1;
+    uint32_t state = 0;
+    size_t read_buf_size;
+    uint8_t read_buf[4+MAX_MSG_SIZE];
+    size_t write_buf_size;
+    size_t write_buf_sent;
+    uint8_t write_buf[4+MAX_MSG_SIZE];
+};
+
 static void die(const char *msg) {
     fprintf(stderr, "[%d] %s\n", errno, msg);
     abort();

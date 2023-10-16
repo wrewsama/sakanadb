@@ -3,10 +3,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <vector>
 
 const size_t MAX_MSG_SIZE = 4096;
 
@@ -31,6 +34,20 @@ static void die(const char *msg) {
     abort();
 }
 
+static void fd_set_nb(int fd) {
+    // TODO
+    return;
+}
+
+static void connection_io(Conn *conn) {
+    // TODO
+    return;
+}
+
+static int32_t accept_new_conn(std::vector<Conn *> &fd_to_conn, int fd) {
+    // TODO
+    return;
+}
 // read exactly size bytes from the fd and shift the buffer ptr accordingly
 static int32_t read_full(int fd, char *buf, size_t size) {
     while (size > 0) {
@@ -127,23 +144,64 @@ int main() {
         die("listen()");
     }
 
+    // maps fds to connections
+    std::vector<Conn *> fd_to_conn;
+
+    // set server fd to nonblocking mode 
+    fd_set_nb(server_fd);
+
+    std::vector<struct pollfd> poll_args;
     while (true) {
-        // accept TCP handshake
-        struct sockaddr_in client_addr = {};
-        socklen_t socklen = sizeof(client_addr);
-        int conn_fd = accept(server_fd, (struct sockaddr *)&client_addr, &socklen);
-        if (conn_fd < 0) {
-            continue;
+        // prep args of the poll 
+        poll_args.clear();
+
+        struct pollfd poll_fd = {server_fd, POLLIN, 0};
+        poll_args.push_back(poll_fd);
+
+        // add connection fds to poll args
+        for (Conn *conn : fd_to_conn) {
+            if (!conn) {
+                continue;
+            }
+
+            struct pollfd poll_fd = {};
+            poll_fd.fd = conn->fd;
+            poll_fd.events = conn->state == STATE_REQ
+                ? POLLIN // read inputs if this is a request fd
+                : POLLOUT; // write inputs otherwise
+            poll_fd.events = poll_fd.events | POLLERR; // read error conditions
+            poll_args.push_back(poll_fd);
         }
 
-        // serve that connection
-        while (true) {
-            int32_t err = handle_req(conn_fd);
-            if (err) {
-                break;
-            }
+        // poll for active fds
+        int res = poll(poll_args.data(), (nfds_t) poll_args.size(), 1000);
+        if (res < 0) {
+            die("poll");
         }
-        close(conn_fd);
+
+        // process active conns
+        for (size_t i = 1; i < poll_args.size(); i++) {
+            if (!poll_args[i].revents) {
+                // if inactive, skip
+                continue;
+            }
+            Conn *conn = fd_to_conn[poll_args[i].fd];
+            connection_io(conn);
+
+            if (conn->state != STATE_END) {
+                continue;
+            }
+            // if this is the end state, need to destroy conn
+            fd_to_conn[conn->fd] = NULL;
+            close(conn->fd);
+            free(conn);
+        }
+
+        // accept new conn if server fd is active 
+        if (poll_args[0].revents) {
+            accept_new_conn(fd_to_conn, server_fd);
+        }
+
     }
 
     return 0;

@@ -34,7 +34,7 @@ static void die(const char *msg) {
     abort();
 }
 
-static void fd_set_nb(int fd) {
+static void fd_set_nonblocking(int fd) {
     // TODO
     return;
 }
@@ -44,9 +44,38 @@ static void connection_io(Conn *conn) {
     return;
 }
 
-static int32_t accept_new_conn(std::vector<Conn *> &fd_to_conn, int fd) {
-    // TODO
-    return;
+static void save_conn(std::vector<Conn *> &fd_to_conn, struct Conn *conn) {
+    if (fd_to_conn.size() <= (size_t)conn->fd) {
+        // resize to accommodate the fd number
+        // since we use the fd number as the index of the corresponding conn
+        fd_to_conn.resize(conn->fd + 1);
+    }
+    fd_to_conn[conn->fd] = conn;
+}
+
+static int32_t accept_new_conn(std::vector<Conn *> &fd_to_conn, int server_fd) {
+    struct sockaddr_in client_addr = {};
+    socklen_t socklen = sizeof(client_addr);
+    int conn_fd = accept(server_fd, (struct sockaddr *)&client_addr, &socklen);
+    if (conn_fd < 0) {
+        printf("accept() error");
+        return -1;
+    }
+
+    fd_set_nonblocking(conn_fd);
+
+    struct Conn *conn = (struct Conn *) malloc(sizeof(struct Conn));
+    if (!conn) {
+        close(conn_fd);
+        return -1;
+    }
+    conn->fd = conn_fd;
+    conn->state = STATE_REQ;
+    conn->read_buf_size = 0;
+    conn->write_buf_size = 0;
+    conn->write_buf_sent = 0;
+    save_conn(fd_to_conn, conn);
+    return 0;
 }
 // read exactly size bytes from the fd and shift the buffer ptr accordingly
 static int32_t read_full(int fd, char *buf, size_t size) {

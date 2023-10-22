@@ -39,9 +39,20 @@ static void fd_set_nonblocking(int fd) {
     return;
 }
 
-static void connection_io(Conn *conn) {
+static void handle_state_req(Conn *conn) {
     // TODO
-    return;
+}
+
+static void handle_state_res(Conn *conn) {
+    // TODO
+}
+
+static void connection_io(Conn *conn) {
+    if (conn->state == STATE_REQ) {
+        handle_state_req(conn);
+    } else if (conn->state == STATE_RES) {
+        handle_state_res(conn);
+    }
 }
 
 static void save_conn(std::vector<Conn *> &fd_to_conn, struct Conn *conn) {
@@ -177,7 +188,7 @@ int main() {
     std::vector<Conn *> fd_to_conn;
 
     // set server fd to nonblocking mode 
-    fd_set_nb(server_fd);
+    fd_set_nonblocking(server_fd);
 
     std::vector<struct pollfd> poll_args;
     while (true) {

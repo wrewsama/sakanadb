@@ -39,8 +39,53 @@ static void fd_set_nonblocking(int fd) {
     return;
 }
 
-static void handle_state_req(Conn *conn) {
+static bool try_one_req(Conn *conn) {
     // TODO
+    return false;
+}
+
+static bool try_fill_buffer(Conn *conn) {
+    ssize_t res;
+
+    do {
+        // get num of bytes left to fill buffer
+        size_t cap = sizeof(conn->read_buf) - conn->read_buf_size; 
+
+        // read at most cap bytes
+        res = read(conn->fd, &conn->read_buf[conn->read_buf_size], cap);
+    } while (res < 0 && errno == EINTR);
+
+    if (res < 0 && errno == EAGAIN) {
+        // fd is not ready to be read
+        return false;
+    }
+    if (res < 0) {
+        // fd is ready but still throws error
+        printf("read error");
+        conn->state = STATE_END;
+        return false;
+    }
+    if (res == 0) {
+        if (conn->read_buf_size > 0) {
+            printf("unexpected EOF");
+        } else {
+            printf("EOF");
+        }
+        conn->state = STATE_END;
+        return false;
+    }
+
+    // update read buffer size
+    conn->read_buf_size += (size_t) res;
+
+    // process the requests
+    while (try_one_req(conn)) {}
+
+    return (conn->state == STATE_REQ);
+}
+
+static void handle_state_req(Conn *conn) {
+    while (try_fill_buffer(conn)) {}
 }
 
 static void handle_state_res(Conn *conn) {

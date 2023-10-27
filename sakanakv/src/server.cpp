@@ -40,8 +40,42 @@ static void fd_set_nonblocking(int fd) {
 }
 
 static bool try_one_req(Conn *conn) {
-    // TODO
-    return false;
+    if (conn->read_buf_size < 4) {
+        // insufficient data in buf, can't read header, try again next iter
+        return false;
+    }
+
+    uint32_t len = 0;
+    memcpy(&len, conn->read_buf, 4); // read len from header 
+    if (len > MAX_MSG_SIZE) {
+        printf("msg too long");
+        conn->state = STATE_END;
+        return false;
+    }
+    if (4 + len > conn->read_buf_size) {
+        // insufficient data in buf, try again next iter
+        return false;
+    }
+
+    printf("[SERVER] Received msg %.*s from client", len, &conn->read_buf[4]);
+
+    // store response in write buf
+    memcpy(conn->write_buf, conn->read_buf, len+4);
+    conn->write_buf_size = 4 + len;
+
+    // shift the next request in the buffer forward
+    size_t remaining_bytes = conn->read_buf_size - 4 - len;
+    if (remaining_bytes) {
+        memmove(conn->read_buf, &conn->read_buf[4 + len], remaining_bytes);
+    }
+    conn->read_buf_size = remaining_bytes;
+
+    // update state
+    conn->state = STATE_RES;
+    handle_state_res(conn);
+
+    // if the req was fully processed, continue outer loop
+    return (conn->state == STATE_REQ);
 }
 
 static bool try_fill_buffer(Conn *conn) {

@@ -22,10 +22,10 @@ enum {
 struct Conn {
     int fd = -1;
     uint32_t state = 0;
-    size_t read_buf_size;
+    size_t read_buf_size; // number of bytes saved in read buffer
     uint8_t read_buf[4+MAX_MSG_SIZE];
-    size_t write_buf_size;
-    size_t write_buf_sent;
+    size_t write_buf_size; // number of bytes stored in write buffer
+    size_t write_buf_sent; // number of bytes written from the write buffer
     uint8_t write_buf[4+MAX_MSG_SIZE];
 };
 
@@ -122,8 +122,38 @@ static void handle_state_req(Conn *conn) {
     while (try_fill_buffer(conn)) {}
 }
 
+static bool try_flush_buffer(Conn *conn) {
+    ssize_t res = 0;
+    do {
+        size_t remaining_bytes = conn->write_buf_size - conn->write_buf_sent;
+        res = write(conn->fd, &conn->write_buf[conn->write_buf_sent], remaining_bytes);
+    } while (res < 0 && errno == EINTR);
+
+    if (res < 0 && errno == EAGAIN) {
+        return false;
+    }
+
+    if (res < 0) {
+        printf("write() error");
+        conn->state = STATE_END;
+        return false;
+    }
+
+    conn->write_buf_sent += (size_t) res;
+    if (conn->write_buf_sent == conn->write_buf_size) {
+        // change state back since msg has been fully sent
+        conn->state = STATE_REQ;
+        conn->write_buf_sent = 0;
+        conn->write_buf_size = 0;
+        return false;
+    }
+
+    // try write again
+    return true;
+}
+
 static void handle_state_res(Conn *conn) {
-    // TODO
+    while (try_flush_buffer(conn)) {}
 }
 
 static void connection_io(Conn *conn) {

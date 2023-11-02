@@ -35,8 +35,21 @@ static void die(const char *msg) {
 }
 
 static void fd_set_nonblocking(int fd) {
-    // TODO
-    return;
+    errno = 0;
+    int flags = fcntl(fd, F_GETFL, 0); // get the file status flags
+    if (errno) {
+        die("fcntl error");
+        return;
+    }
+
+    flags |= O_NONBLOCK; // add the NONBLOCK flag
+
+    errno = 0;
+    fcntl(fd, F_SETFL, flags);
+    if (errno) {
+        die("fcntl error");
+        return;
+    }
 }
 
 static bool try_one_req(Conn *conn) {

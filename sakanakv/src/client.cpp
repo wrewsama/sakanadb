@@ -60,12 +60,18 @@ static int32_t send_req(int conn_fd, const char *req) {
         return err;
     }
 
+    return 0;
+}
+
+static int32_t read_res(int conn_fd) {
     // read
     char read_buf[4 + MAX_MSG_SIZE + 1];
-    err = read_full(conn_fd, read_buf, 4);
+    int32_t err = read_full(conn_fd, read_buf, 4);
     if (err) {
         return err;
     }
+
+    uint32_t len = 0;
     memcpy(&len, read_buf, 4);
     if (len > MAX_MSG_SIZE) {
         return -1;
@@ -96,20 +102,21 @@ int main() {
         die("connect()");
     }
     
-    int32_t err = send_req(client_fd, "ogey");
-    if (err) {
-        close(client_fd);
-        return 0;
+    const char *queries[3] = {"test", "testy", "tested"};
+    for (size_t i = 0; i < 3; i++) {
+        int32_t err = send_req(client_fd, queries[i]);
+        if (err) {
+            close(client_fd);
+            return 0;
+        }
     }
-    err = send_req(client_fd, "kon");
-    if (err) {
-        close(client_fd);
-        return 0;
-    }
-    err = send_req(client_fd, "faq");
-    if (err) {
-        close(client_fd);
-        return 0;
+
+    for (size_t i = 0; i < 3; i++) {
+        int32_t err = read_res(client_fd);
+        if (err) {
+            close(client_fd);
+            return 0;
+        }
     }
 
     close(client_fd);

@@ -52,6 +52,40 @@ static void fd_set_nonblocking(int fd) {
     }
 }
 
+static bool try_flush_buffer(Conn *conn) {
+    ssize_t res = 0;
+    do {
+        size_t remaining_bytes = conn->write_buf_size - conn->write_buf_sent;
+        res = write(conn->fd, &conn->write_buf[conn->write_buf_sent], remaining_bytes);
+    } while (res < 0 && errno == EINTR);
+
+    if (res < 0 && errno == EAGAIN) {
+        return false;
+    }
+
+    if (res < 0) {
+        printf("write() error");
+        conn->state = STATE_END;
+        return false;
+    }
+
+    conn->write_buf_sent += (size_t) res;
+    if (conn->write_buf_sent == conn->write_buf_size) {
+        // change state back since msg has been fully sent
+        conn->state = STATE_REQ;
+        conn->write_buf_sent = 0;
+        conn->write_buf_size = 0;
+        return false;
+    }
+
+    // try write again
+    return true;
+}
+
+static void handle_state_res(Conn *conn) {
+    while (try_flush_buffer(conn)) {}
+}
+
 static bool try_one_req(Conn *conn) {
     if (conn->read_buf_size < 4) {
         // insufficient data in buf, can't read header, try again next iter
@@ -70,7 +104,7 @@ static bool try_one_req(Conn *conn) {
         return false;
     }
 
-    printf("[SERVER] Received msg %.*s from client", len, &conn->read_buf[4]);
+    printf("[SERVER] Received msg %.*s from client\n", len, &conn->read_buf[4]);
 
     // store response in write buf
     memcpy(conn->write_buf, conn->read_buf, len+4);
@@ -135,40 +169,6 @@ static void handle_state_req(Conn *conn) {
     while (try_fill_buffer(conn)) {}
 }
 
-static bool try_flush_buffer(Conn *conn) {
-    ssize_t res = 0;
-    do {
-        size_t remaining_bytes = conn->write_buf_size - conn->write_buf_sent;
-        res = write(conn->fd, &conn->write_buf[conn->write_buf_sent], remaining_bytes);
-    } while (res < 0 && errno == EINTR);
-
-    if (res < 0 && errno == EAGAIN) {
-        return false;
-    }
-
-    if (res < 0) {
-        printf("write() error");
-        conn->state = STATE_END;
-        return false;
-    }
-
-    conn->write_buf_sent += (size_t) res;
-    if (conn->write_buf_sent == conn->write_buf_size) {
-        // change state back since msg has been fully sent
-        conn->state = STATE_REQ;
-        conn->write_buf_sent = 0;
-        conn->write_buf_size = 0;
-        return false;
-    }
-
-    // try write again
-    return true;
-}
-
-static void handle_state_res(Conn *conn) {
-    while (try_flush_buffer(conn)) {}
-}
-
 static void connection_io(Conn *conn) {
     if (conn->state == STATE_REQ) {
         handle_state_req(conn);
@@ -209,74 +209,6 @@ static int32_t accept_new_conn(std::vector<Conn *> &fd_to_conn, int server_fd) {
     conn->write_buf_sent = 0;
     save_conn(fd_to_conn, conn);
     return 0;
-}
-// read exactly size bytes from the fd and shift the buffer ptr accordingly
-static int32_t read_full(int fd, char *buf, size_t size) {
-    while (size > 0) {
-        ssize_t res = read(fd, buf, size);
-        if (res <= 0) {
-            // error or unexpected EOF reached
-            return -1; 
-        }
-
-        size -= (size_t) res;
-        buf += res;
-    }
-    return 0;
-}
-
-// write size bytes from the buffer into the fd
-static int32_t write_all(int fd, char *buf, size_t size) {
-    while (size > 0) {
-        ssize_t res = write(fd, buf, size);
-        if (res <= 0) {
-            // error
-            return -1; 
-        }
-
-        size -= (size_t) res;
-        buf += res;
-    }
-    return 0;
-}
-
-static int32_t handle_req(int conn_fd) {
-    // read header
-    char read_buf[4 + MAX_MSG_SIZE + 1]; // 4 bytes for header, 1 byte for escape char
-    int32_t err = read_full(conn_fd, read_buf, 4);
-    if (err) {
-        printf("read() error");
-        return err;
-    }
-
-    // get the msg length from the header
-    uint32_t len = 0;
-    memcpy(&len, read_buf, 4);
-    if (len > MAX_MSG_SIZE) {
-        printf("message is too long");
-        return -1;
-    }
-
-    // read the msg
-    err = read_full(conn_fd, &read_buf[4], len);
-    if (err) {
-        printf("read() error");
-        return err;
-    }
-
-    // add in the escape char at the end
-    read_buf[4+len] =  '\0';
-
-    // print the msg
-    printf("[SERVER]: received response '%s' from client\n", &read_buf[4]);
-
-    // reply
-    const char reply[] = "peko";
-    char write_buf[4+sizeof(reply)];
-    len = (uint32_t) strlen(reply);
-    memcpy(write_buf, &len, 4); // write the len into the 1st 4 bytes of the write buf
-    memcpy(&write_buf[4], reply, len);
-    return write_all(conn_fd, write_buf, 4+len);
 }
 
 int main() {

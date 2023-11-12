@@ -86,6 +86,15 @@ static void handle_state_res(Conn *conn) {
     while (try_flush_buffer(conn)) {}
 }
 
+static int32_t do_request(const uint8_t *req,
+    uint32_t req_len,
+    uint32_t *res_code,
+    uint8_t *res,
+    uint32_t *res_len) {
+        // TODO
+        return 0;
+    }
+
 static bool try_one_req(Conn *conn) {
     if (conn->read_buf_size < 4) {
         // insufficient data in buf, can't read header, try again next iter
@@ -104,11 +113,28 @@ static bool try_one_req(Conn *conn) {
         return false;
     }
 
-    printf("[SERVER] Received msg %.*s from client\n", len, &conn->read_buf[4]);
+    // parse and handle req
+    uint32_t res_code = 0;
+    uint32_t write_len = 0;
+    int32_t err = do_request(
+        &conn->read_buf[4],
+        len,
+        &res_code,
+        &conn->write_buf[4 + 4],
+        &write_len
+    );
 
-    // store response in write buf
-    memcpy(conn->write_buf, conn->read_buf, len+4);
-    conn->write_buf_size = 4 + len;
+    // handle bad req
+    if (err) {
+        conn->state = STATE_END;
+        return false;
+    }
+
+    // add res to the buffer
+    write_len += 4;
+    memcpy(conn->write_buf, &write_len, 4);
+    memcpy(&conn->write_buf[4], &res_code, 4);
+    conn->write_buf_size = 4 + write_len;
 
     // shift the next request in the buffer forward
     size_t remaining_bytes = conn->read_buf_size - 4 - len;

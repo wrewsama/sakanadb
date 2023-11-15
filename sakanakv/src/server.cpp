@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <string>
 #include <vector>
 
 const size_t MAX_MSG_SIZE = 4096;
@@ -86,12 +87,74 @@ static void handle_state_res(Conn *conn) {
     while (try_flush_buffer(conn)) {}
 }
 
+enum {
+    RES_OK = 0,
+    RES_ERR = 1,
+    RES_NX = 2
+};
+
+static uint32_t do_get(
+    const std::vector<std::string> &cmd,
+    uint8_t *res,
+    uint32_t *res_len
+) {
+    // TODO
+    return 0;
+}
+
+static uint32_t do_set(
+    const std::vector<std::string> &cmd,
+    uint8_t *res,
+    uint32_t *res_len
+) {
+    // TODO
+    return 0;
+}
+
+static uint32_t do_del(
+    const std::vector<std::string> &cmd,
+    uint8_t *res,
+    uint32_t *res_len
+) {
+    // TODO
+    return 0;
+}
+
+static int32_t parse_req(
+    const uint8_t *data,
+    size_t len,
+    std::vector<std::string> &out) {
+        // TODO
+        return 0;
+    }
+
 static int32_t do_request(const uint8_t *req,
     uint32_t req_len,
     uint32_t *res_code,
     uint8_t *res,
     uint32_t *res_len) {
-        // TODO
+        std::vector<std::string> cmd;
+
+        // parse the req and store it in the cmd vector
+        if (parse_req(req, req_len, cmd) != 0) {
+            printf("bad req");
+            return -1;
+        }
+
+        // strcasecmp just checks if the cmd keyword is equal to the RHS
+        if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "get") == 0) {
+            *res_code = do_get(cmd, res, res_len);
+        } else if (cmd.size() == 3 && strcasecmp(cmd[0].c_str(), "set") == 0) {
+            *res_code = do_set(cmd, res, res_len);
+        } else if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "del") == 0) {
+            *res_code = do_del(cmd, res, res_len);
+        } else {
+            *res_code = RES_ERR;
+            const char *msg = "unknown command";
+            strcpy((char *) res, msg);
+            *res_len = strlen(msg);
+            return 0;
+        }
         return 0;
     }
 

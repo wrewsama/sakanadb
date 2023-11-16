@@ -13,6 +13,7 @@
 #include <vector>
 
 const size_t MAX_MSG_SIZE = 4096;
+const size_t MAX_ARGS_SIZE = 1024;
 
 enum {
     STATE_REQ = 0,
@@ -124,7 +125,35 @@ static int32_t parse_req(
     const uint8_t *data,
     size_t len,
     std::vector<std::string> &out) {
-        // TODO
+        if (len < 4) {
+            // can't even read header
+            return -1; 
+        }
+
+        uint32_t args_size = 0;
+        memcpy(&args_size, data, 4);
+        if (args_size > MAX_ARGS_SIZE) {
+            return -1;
+        }
+
+        size_t cur_pos = 4;
+        while (args_size--) {
+            if (cur_pos + 4 > len) {
+                return -1;
+            }
+            uint32_t size = 0;
+            memcpy(&size, &data[cur_pos], 4);
+            if (cur_pos + 4 + size > len) {
+                return -1;
+            }
+            out.push_back(std::string((char *) &data[cur_pos+4], size));
+            cur_pos += 4 + size;
+
+        }
+
+        if (cur_pos != len) {
+            return -1; // extra garbage trailing
+        }
         return 0;
     }
 

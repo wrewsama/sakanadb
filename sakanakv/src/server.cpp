@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -94,13 +95,20 @@ enum {
     RES_NX = 2
 };
 
+static std::map<std::string, std::string> temp_map;
+
 static uint32_t do_get(
     const std::vector<std::string> &cmd,
     uint8_t *res,
     uint32_t *res_len
 ) {
-    // TODO
-    return 0;
+    if (!temp_map.count(cmd[1])) {
+        return RES_NX;
+    }
+    std::string &val = temp_map[cmd[1]];
+    memcpy(res, val.data(), val.size());
+    *res_len = (uint32_t) val.size();
+    return RES_OK;
 }
 
 static uint32_t do_set(

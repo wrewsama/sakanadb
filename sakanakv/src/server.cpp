@@ -116,8 +116,8 @@ static uint32_t do_set(
     uint8_t *res,
     uint32_t *res_len
 ) {
-    // TODO
-    return 0;
+    temp_map[cmd[1]] = cmd[2];
+    return RES_OK;
 }
 
 static uint32_t do_del(

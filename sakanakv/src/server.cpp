@@ -125,8 +125,8 @@ static uint32_t do_del(
     uint8_t *res,
     uint32_t *res_len
 ) {
-    // TODO
-    return 0;
+    temp_map.erase(cmd[1]);
+    return RES_OK;
 }
 
 static int32_t parse_req(

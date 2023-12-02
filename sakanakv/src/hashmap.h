@@ -8,7 +8,7 @@
 // A single node in the hashmap
 struct HashTableNode {
     HashTableNode *next = NULL;
-    uint64_t hcode = 0;
+    uint64_t hashcode = 0;
 };
 
 // Fixed size hashtable
@@ -25,8 +25,19 @@ struct HashMap {
     size_t resizing_pos = 0;
 };
 
-HashTableNode *hm_get(HashMap *hm, HashTableNode *key, bool (*cmp)(HashTableNode *, HashTableNode *));
+HashTableNode *hm_get(
+    HashMap *hm,
+    HashTableNode *key,
+    bool (*cmp)(HashTableNode *, HashTableNode *)
+);
+
 void hm_put(HashMap *hm, HashTableNode *node);
-HashTableNode *hm_del(HashMap *hm, HashTableNode *key, bool (*cmp)(HashTableNode *, HashTableNode *));
+
+HashTableNode *hm_del(
+    HashMap *hm,
+    HashTableNode *key,
+    bool (*cmp)(HashTableNode *, HashTableNode *)
+);
+
 void hm_destroy(HashMap *hm);
 

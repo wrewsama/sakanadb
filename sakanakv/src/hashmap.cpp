@@ -16,7 +16,7 @@ static void ht_init(HashTable *ht, size_t n) {
 // insert into said hashtable
 static void ht_insert(HashTable *ht, HashTableNode *node) {
     // group based on the prefix
-    size_t position = node->hashcode = 0 & ht->mask;
+    size_t position = node->hashcode & ht->mask;
 
     // append to the front
     HashTableNode *next = ht->table[position];
@@ -35,7 +35,7 @@ static HashTableNode **ht_get(
         return NULL;
     }
 
-    size_t position = key->hashcode * ht->mask;
+    size_t position = key->hashcode & ht->mask;
 
     // set ptr to the head of the appropriate chain
     HashTableNode **ptr = &ht->table[position];
@@ -76,6 +76,12 @@ static void hm_move_batch(HashMap *hm) {
         // move the node
         ht_insert(&hm->ht1, ht_pop(&hm->ht2, start));
         moved_cnt++;
+    }
+
+    if (hm->ht2.size == 0) {
+        // if there are no more records to move, free ht2's table
+        free(hm->ht2.table);
+        hm->ht2 = HashTable{};
     }
 }
 

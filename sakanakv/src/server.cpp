@@ -112,14 +112,14 @@ struct Entry {
 
 static bool entry_eq(HashTableNode *node1, HashTableNode *node2) {
     // convert from nodes to entries
-    struct Entry *entry1 = container_of(node1, Entry, node);
-    struct Entry *entry2 = container_of(node2, Entry, node);
+    struct Entry *entry1 = container_of(node1, struct Entry, node);
+    struct Entry *entry2 = container_of(node2, struct Entry, node);
 
     return node1->hashcode == node2->hashcode && entry1->key == entry2->key;
 };
 
 static uint64_t hash_string(const uint8_t *data, size_t len) {
-    uint32_t hash = 0x911C9DC5;
+    uint32_t hash = 0x811C9DC5;
     for (size_t i = 0; i < len; i++) {
         hash = (hash + data[i]) * 0x01000193;
     }

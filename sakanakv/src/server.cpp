@@ -27,6 +27,15 @@ enum {
     STATE_END = 2
 };
 
+// indicates the type of data we are serialising
+enum {
+    SER_NIL = 0, // null
+    SER_ERR = 1, // err code and message
+    SER_STR = 2, // string
+    SER_INT = 3, // 64 bit integer
+    SER_ARR = 4, // array of strings
+};
+
 struct Conn {
     int fd = -1;
     uint32_t state = 0;

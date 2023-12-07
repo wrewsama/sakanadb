@@ -12,6 +12,15 @@
 
 const size_t MAX_MSG_SIZE = 4096;
 
+// indicates the type of data we are serialising
+enum {
+    SER_NIL = 0, // null
+    SER_ERR = 1, // err code and message
+    SER_STR = 2, // string
+    SER_INT = 3, // 64 bit integer
+    SER_ARR = 4, // array of strings
+};
+
 static void die(const char *msg) {
     fprintf(stderr, "[%d] %s\n", errno, msg);
     abort();

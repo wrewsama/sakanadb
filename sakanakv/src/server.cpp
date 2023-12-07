@@ -9,9 +9,14 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
-#include <map>
 #include <string>
 #include <vector>
+# include "hashmap.h"
+
+// macro to convert Nodes to Entries
+#define container_of(ptr, type, member) ({                  \
+    const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+    (type *)( (char *)__mptr - offsetof(type, member) );})
 
 const size_t MAX_MSG_SIZE = 4096;
 const size_t MAX_ARGS_SIZE = 1024;
@@ -95,37 +100,88 @@ enum {
     RES_NX = 2
 };
 
-static std::map<std::string, std::string> temp_map;
+static struct {
+    HashMap db;
+} data;
+
+struct Entry {
+    struct HashTableNode node;
+    std::string key;
+    std::string value;
+};
+
+static bool entry_eq(HashTableNode *node1, HashTableNode *node2) {
+    // convert from nodes to entries
+    struct Entry *entry1 = container_of(node1, struct Entry, node);
+    struct Entry *entry2 = container_of(node2, struct Entry, node);
+
+    return node1->hashcode == node2->hashcode && entry1->key == entry2->key;
+};
+
+static uint64_t hash_string(const uint8_t *data, size_t len) {
+    uint32_t hash = 0x811C9DC5;
+    for (size_t i = 0; i < len; i++) {
+        hash = (hash + data[i]) * 0x01000193;
+    }
+    return hash;
+}
 
 static uint32_t do_get(
-    const std::vector<std::string> &cmd,
+    std::vector<std::string> &cmd,
     uint8_t *res,
     uint32_t *res_len
 ) {
-    if (!temp_map.count(cmd[1])) {
+    Entry entry;
+    entry.key.swap(cmd[1]);
+    entry.node.hashcode = hash_string((uint8_t *)entry.key.data(), entry.key.size());
+
+    HashTableNode *node = hm_get(&data.db, &entry.node, &entry_eq);
+    if (!node) {
         return RES_NX;
     }
-    std::string &val = temp_map[cmd[1]];
+
+    const std::string &val = container_of(node, Entry, node)->value;
     memcpy(res, val.data(), val.size());
     *res_len = (uint32_t) val.size();
     return RES_OK;
 }
 
 static uint32_t do_set(
-    const std::vector<std::string> &cmd,
+    std::vector<std::string> &cmd,
     uint8_t *res,
     uint32_t *res_len
 ) {
-    temp_map[cmd[1]] = cmd[2];
+    Entry entry;
+    entry.key.swap(cmd[1]);
+    entry.node.hashcode = hash_string((uint8_t *)entry.key.data(), entry.key.size());
+    
+    HashTableNode *node = hm_get(&data.db, &entry.node, &entry_eq);
+    if (node) {
+        container_of(node, Entry, node)->value.swap(cmd[2]);
+    } else {
+        Entry *newEntry = new Entry();
+        newEntry->key.swap(entry.key);
+        newEntry->node.hashcode = entry.node.hashcode;
+        newEntry->value.swap(cmd[2]);
+        hm_put(&data.db, &newEntry->node);
+    }
     return RES_OK;
 }
 
 static uint32_t do_del(
-    const std::vector<std::string> &cmd,
+    std::vector<std::string> &cmd,
     uint8_t *res,
     uint32_t *res_len
 ) {
-    temp_map.erase(cmd[1]);
+    Entry entry;
+    entry.key.swap(cmd[1]);
+    entry.node.hashcode = hash_string((uint8_t *)entry.key.data(), entry.key.size());
+
+    HashTableNode *deletedNode = hm_del(&data.db, &entry.node, &entry_eq);
+    if (deletedNode) {
+        delete container_of(deletedNode, Entry, node);
+    }
+
     return RES_OK;
 }
 

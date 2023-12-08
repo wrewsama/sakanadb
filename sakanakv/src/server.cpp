@@ -172,7 +172,7 @@ static uint64_t hash_string(const uint8_t *data, size_t len) {
 
 static void do_get(
     std::vector<std::string> &cmd,
-    std::vector<std::string> &out,
+    std::string &out
 ) {
     Entry entry;
     entry.key.swap(cmd[1]);
@@ -181,16 +181,16 @@ static void do_get(
     HashTableNode *node = hm_get(&data.db, &entry.node, &entry_eq);
     if (!node) {
         output_nil(out);
-        return
+        return;
     }
 
-    const std::string &val = container_of(node, Entry, node)->val; 
-    out_str(out, val);
+    const std::string &val = container_of(node, Entry, node)->value; 
+    output_str(out, val);
 }
 
 static void do_set(
     std::vector<std::string> &cmd,
-    std::vector<std::string> &out,
+    std::string &out
 ) {
     Entry entry;
     entry.key.swap(cmd[1]);
@@ -206,12 +206,12 @@ static void do_set(
         newEntry->value.swap(cmd[2]);
         hm_put(&data.db, &newEntry->node);
     }
-    out_nil(out);
+    output_nil(out);
 }
 
 static void do_del(
     std::vector<std::string> &cmd,
-    std::vector<std::string> &out,
+    std::string &out
 ) {
     Entry entry;
     entry.key.swap(cmd[1]);
@@ -221,17 +221,17 @@ static void do_del(
     if (deletedNode) {
         delete container_of(deletedNode, Entry, node);
     }
-    out_int(out, node ? 1 : 0);
+    output_int(out, deletedNode ? 1 : 0);
 }
 
 // applies funct to each node in a given hashtable
-static void ht_foreach(HashTable *ht, void (* funct)(HNode *, void *), void *arg)) {
+static void ht_foreach(HashTable *ht, void (*funct)(HashTableNode *, void *), void *arg) {
     if (ht->size == 0) {
         return;
     }
 
-    for (size_t i = 0; i < tab->mask + 1; ++i) {
-        HashTableNode *node = table->table[i]);
+    for (size_t i = 0; i < ht->mask + 1; ++i) {
+        HashTableNode *node = ht->table[i];
         while (node) {
             funct(node, arg);
             node = node->next;
@@ -249,11 +249,11 @@ static void extract_key(HashTableNode *node, void *arg) {
 
 static void do_keys(
     std::vector<std::string> &cmd,
-    std::vector<std::string> &out,
+    std::string &out
 ) {
-    output_arr(out, (uint32_t)hm_size(&data));
-    ht_scan(&data.db.ht1, &extract_key, &out);
-    ht_scan(&data.db.ht2, &extract_key, &out);
+    output_arr_size(out, (uint32_t)hm_size(&data.db));
+    ht_foreach(&data.db.ht1, &extract_key, &out);
+    ht_foreach(&data.db.ht2, &extract_key, &out);
 }
 
 static int32_t parse_req(
@@ -298,13 +298,13 @@ static void do_request(
     ) {
         // strcasecmp just checks if the cmd keyword is equal to the RHS
         if (cmd.size() == 1 && strcasecmp(cmd[0].c_str(), "keys") == 0) {
-            
+            do_keys(cmd, out);
         } else if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "get") == 0) {
-            *res_code = do_get(cmd, res, res_len);
+            do_get(cmd, out);
         } else if (cmd.size() == 3 && strcasecmp(cmd[0].c_str(), "set") == 0) {
-            *res_code = do_set(cmd, res, res_len);
+            do_set(cmd, out);
         } else if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "del") == 0) {
-            *res_code = do_del(cmd, res, res_len);
+            do_del(cmd, out);
         } else {
             output_err(out, ERR_UNKNOWN, "Unknown command");
         }
@@ -338,16 +338,16 @@ static bool try_one_req(Conn *conn) {
 
     // generate res
     std::string res;
-    do_request(cmd, out);
+    do_request(cmd, res);
 
     // load res into buffer
     if (4 + res.size() > MAX_MSG_SIZE) {
         res.clear();
-        output_err(res, ERR_TOO_BIG, "Response too big!") 
+        output_err(res, ERR_TOO_BIG, "Response too big!");
     }
-    uint32_t write_len = (uint32_t) out.size();
+    uint32_t write_len = (uint32_t) res.size();
     memcpy(conn->write_buf, &write_len, 4);
-    memcpy(&conn->write_buf[4], out.data(), out.size());
+    memcpy(&conn->write_buf[4], res.data(), res.size());
     conn->write_buf_size = 4 + write_len;
 
     // shift the next request in the buffer forward

@@ -11,6 +11,7 @@
 #include <netinet/ip.h>
 #include <string>
 #include <vector>
+#include <iostream>
 # include "hashmap.h"
 
 // macro to convert Nodes to Entries
@@ -67,8 +68,8 @@ static void output_err(std::string &output, int32_t code, const std::string &msg
 }
 
 static void output_arr_size(std::string &output, uint32_t size) {
-    output.push_back(SER_INT);
-    output.append((char *)&size, 8);
+    output.push_back(SER_ARR);
+    output.append((char *)&size, 4);
 }
 
 struct Conn {

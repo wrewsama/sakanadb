@@ -150,3 +150,7 @@ void hm_destroy(HashMap *hm) {
     free(hm->ht2.table);
     *hm = HashMap{};
 }
+
+size_t hm_size(HashMap *hm) {
+    return hm->ht1.size + hm->ht2.size;
+}

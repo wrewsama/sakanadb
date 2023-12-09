@@ -11,6 +11,7 @@
 #include <netinet/ip.h>
 #include <string>
 #include <vector>
+#include <iostream>
 # include "hashmap.h"
 
 // macro to convert Nodes to Entries
@@ -26,6 +27,50 @@ enum {
     STATE_RES = 1,
     STATE_END = 2
 };
+
+// indicates the type of data we are serialising
+enum {
+    SER_NIL = 0, // null
+    SER_ERR = 1, // err code and message
+    SER_STR = 2, // string
+    SER_INT = 3, // 64 bit integer
+    SER_ARR = 4, // array of strings
+};
+
+// error responses
+enum {
+    ERR_UNKNOWN = 0,
+    ERR_TOO_BIG = 1
+};
+
+static void output_nil(std::string &output) {
+    output.push_back(SER_NIL);
+}
+
+static void output_str(std::string &output, const std::string &val) {
+    output.push_back(SER_STR);
+    uint32_t len = (uint32_t) val.size();
+    output.append((char *)&len, 4);
+    output.append(val);
+}
+
+static void output_int(std::string &output, int64_t val) {
+    output.push_back(SER_INT);
+    output.append((char *)&val, 8);
+}
+
+static void output_err(std::string &output, int32_t code, const std::string &msg) {
+    output.push_back(SER_ERR);
+    output.append((char *)&code, 4);
+    uint32_t len = (uint32_t) msg.size();
+    output.append((char *)&len, 4);
+    output.append(msg);
+}
+
+static void output_arr_size(std::string &output, uint32_t size) {
+    output.push_back(SER_ARR);
+    output.append((char *)&size, 4);
+}
 
 struct Conn {
     int fd = -1;
@@ -126,10 +171,9 @@ static uint64_t hash_string(const uint8_t *data, size_t len) {
     return hash;
 }
 
-static uint32_t do_get(
+static void do_get(
     std::vector<std::string> &cmd,
-    uint8_t *res,
-    uint32_t *res_len
+    std::string &out
 ) {
     Entry entry;
     entry.key.swap(cmd[1]);
@@ -137,19 +181,17 @@ static uint32_t do_get(
 
     HashTableNode *node = hm_get(&data.db, &entry.node, &entry_eq);
     if (!node) {
-        return RES_NX;
+        output_nil(out);
+        return;
     }
 
-    const std::string &val = container_of(node, Entry, node)->value;
-    memcpy(res, val.data(), val.size());
-    *res_len = (uint32_t) val.size();
-    return RES_OK;
+    const std::string &val = container_of(node, Entry, node)->value; 
+    output_str(out, val);
 }
 
-static uint32_t do_set(
+static void do_set(
     std::vector<std::string> &cmd,
-    uint8_t *res,
-    uint32_t *res_len
+    std::string &out
 ) {
     Entry entry;
     entry.key.swap(cmd[1]);
@@ -165,13 +207,12 @@ static uint32_t do_set(
         newEntry->value.swap(cmd[2]);
         hm_put(&data.db, &newEntry->node);
     }
-    return RES_OK;
+    output_nil(out);
 }
 
-static uint32_t do_del(
+static void do_del(
     std::vector<std::string> &cmd,
-    uint8_t *res,
-    uint32_t *res_len
+    std::string &out
 ) {
     Entry entry;
     entry.key.swap(cmd[1]);
@@ -181,8 +222,39 @@ static uint32_t do_del(
     if (deletedNode) {
         delete container_of(deletedNode, Entry, node);
     }
+    output_int(out, deletedNode ? 1 : 0);
+}
 
-    return RES_OK;
+// applies funct to each node in a given hashtable
+static void ht_foreach(HashTable *ht, void (*funct)(HashTableNode *, void *), void *arg) {
+    if (ht->size == 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < ht->mask + 1; ++i) {
+        HashTableNode *node = ht->table[i];
+        while (node) {
+            funct(node, arg);
+            node = node->next;
+        }
+    }
+}
+
+static void extract_key(HashTableNode *node, void *arg) {
+    // nasty cast to string
+    std::string &out = *(std::string *) arg;
+
+    // write key to arg
+    output_str(out, container_of(node, Entry, node)->key);
+}
+
+static void do_keys(
+    std::vector<std::string> &cmd,
+    std::string &out
+) {
+    output_arr_size(out, (uint32_t)hm_size(&data.db));
+    ht_foreach(&data.db.ht1, &extract_key, &out);
+    ht_foreach(&data.db.ht2, &extract_key, &out);
 }
 
 static int32_t parse_req(
@@ -221,34 +293,22 @@ static int32_t parse_req(
         return 0;
     }
 
-static int32_t do_request(const uint8_t *req,
-    uint32_t req_len,
-    uint32_t *res_code,
-    uint8_t *res,
-    uint32_t *res_len) {
-        std::vector<std::string> cmd;
-
-        // parse the req and store it in the cmd vector
-        if (parse_req(req, req_len, cmd) != 0) {
-            printf("bad req");
-            return -1;
-        }
-
+static void do_request(
+        std::vector<std::string> &cmd,
+        std::string &out
+    ) {
         // strcasecmp just checks if the cmd keyword is equal to the RHS
-        if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "get") == 0) {
-            *res_code = do_get(cmd, res, res_len);
+        if (cmd.size() == 1 && strcasecmp(cmd[0].c_str(), "keys") == 0) {
+            do_keys(cmd, out);
+        } else if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "get") == 0) {
+            do_get(cmd, out);
         } else if (cmd.size() == 3 && strcasecmp(cmd[0].c_str(), "set") == 0) {
-            *res_code = do_set(cmd, res, res_len);
+            do_set(cmd, out);
         } else if (cmd.size() == 2 && strcasecmp(cmd[0].c_str(), "del") == 0) {
-            *res_code = do_del(cmd, res, res_len);
+            do_del(cmd, out);
         } else {
-            *res_code = RES_ERR;
-            const char *msg = "unknown command";
-            strcpy((char *) res, msg);
-            *res_len = strlen(msg);
-            return 0;
+            output_err(out, ERR_UNKNOWN, "Unknown command");
         }
-        return 0;
     }
 
 static bool try_one_req(Conn *conn) {
@@ -269,27 +329,26 @@ static bool try_one_req(Conn *conn) {
         return false;
     }
 
-    // parse and handle req
-    uint32_t res_code = 0;
-    uint32_t write_len = 0;
-    int32_t err = do_request(
-        &conn->read_buf[4],
-        len,
-        &res_code,
-        &conn->write_buf[4 + 4],
-        &write_len
-    );
-
-    // handle bad req
-    if (err) {
+    // parse req and store in the cmd vector
+    std::vector<std::string> cmd;
+    if (parse_req(&conn->read_buf[4], len, cmd)) {
+        printf("bad req");
         conn->state = STATE_END;
         return false;
     }
 
-    // add res to the buffer
-    write_len += 4;
+    // generate res
+    std::string res;
+    do_request(cmd, res);
+
+    // load res into buffer
+    if (4 + res.size() > MAX_MSG_SIZE) {
+        res.clear();
+        output_err(res, ERR_TOO_BIG, "Response too big!");
+    }
+    uint32_t write_len = (uint32_t) res.size();
     memcpy(conn->write_buf, &write_len, 4);
-    memcpy(&conn->write_buf[4], &res_code, 4);
+    memcpy(&conn->write_buf[4], res.data(), res.size());
     conn->write_buf_size = 4 + write_len;
 
     // shift the next request in the buffer forward

@@ -41,3 +41,5 @@ HashTableNode *hm_del(
 
 void hm_destroy(HashMap *hm);
 
+size_t hm_size(HashMap *hm);
+

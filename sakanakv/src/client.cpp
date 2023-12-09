@@ -12,6 +12,15 @@
 
 const size_t MAX_MSG_SIZE = 4096;
 
+// indicates the type of data we are serialising
+enum {
+    SER_NIL = 0, // null
+    SER_ERR = 1, // err code and message
+    SER_STR = 2, // string
+    SER_INT = 3, // 64 bit integer
+    SER_ARR = 4, // array of strings
+};
+
 static void die(const char *msg) {
     fprintf(stderr, "[%d] %s\n", errno, msg);
     abort();
@@ -73,6 +82,86 @@ static int32_t send_req(int conn_fd, const std::vector<std::string> &cmd) {
     return write_all(conn_fd, write_buf, len+4);
 }
 
+static int32_t on_response(const uint8_t *data, size_t size) {
+    if (size < 1) {
+        printf("bad response");
+        return -1;
+    }
+
+    // switch based on 1st byte (serial code)
+    switch(data[0]) {
+        case SER_NIL:
+            printf("[NIL]\n");
+            return 1;
+        case SER_ERR:
+            if (size < 9) {
+                printf("bad response");
+                return -1;
+            }
+            {
+                int32_t code;
+                uint32_t len;
+                memcpy(&code, &data[1], 4); // byte 1-4 store err code
+                memcpy(&len, &data[1+4], 4); // byte 5-9 store len
+                if (size < 9 + len) {
+                    printf("bad response");
+                    return -1;
+                }
+                printf("[ERR] %d %.*s\n", code, len, &data[9]);
+                return 9 + len;
+            }
+        case SER_STR:
+            if (size < 5) {
+                printf("bad response");
+                return -1;
+            }
+            {
+                uint32_t len;
+                memcpy(&len, &data[1], 4);
+                if (size < 5 + len) {
+                    printf("bad response");
+                    return -1;
+                }
+                printf("[STR] %.*s\n", len, &data[5]);
+                return 5 + len;
+            }
+        case SER_INT:
+            if (size < 1+8) {
+                printf("bad response");
+                return -1;
+            }
+            {
+                int64_t val;
+                memcpy(&val, &data[1], 8);
+                printf("[INT] %ld\n", val);
+                return 9;
+            }
+        case SER_ARR:
+            if (size < 5) {
+                printf("bad response");
+                return -1;
+            }
+            {
+                uint32_t len;
+                memcpy(&len, &data[1], 4);
+                printf("[ARR] len = %u\n", len);
+                size_t total_bytes = 5;
+                for (uint32_t i = 0; i < len; i++) {
+                    int32_t return_val = on_response(&data[total_bytes], size - total_bytes);
+                    if (return_val < 0) {
+                        return return_val;
+                    }
+                    total_bytes += (size_t) return_val;
+                }
+                printf("[ARR] end\n");
+                return (int32_t) total_bytes;
+            }
+        default:
+            printf("bad response");
+            return -1;
+    }
+}
+
 static int32_t read_res(int conn_fd) {
     // read
     char read_buf[4 + MAX_MSG_SIZE + 1];
@@ -91,15 +180,11 @@ static int32_t read_res(int conn_fd) {
         return err;
     }
 
-    // ensure a header is present to avoid segfaults
-    if (len < 4) {
-        printf("bad response");
-        return -1;
+    // handle response
+    int32_t return_val = on_response((uint8_t *)&read_buf[4], len);
+    if (return_val > 0 && (uint32_t)return_val != len) {
+        return_val = -1;
     }
-
-    uint32_t rescode = 0;
-    memcpy(&rescode, &read_buf[4], 4);
-    printf("[CLIENT]: Received [%u] %.*s\n", rescode, len-4, &read_buf[8]);
 
     return 0;
 }

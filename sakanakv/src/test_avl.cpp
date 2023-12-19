@@ -31,7 +31,7 @@ static void insert(Container &container, uint32_t val) {
     while (true) {
         AvlNode **from = val < container_of(cur, Data, node)->val
             ? &cur->left
-            : &cur ->right;
+            : &cur->right;
         if (!*from) {
             *from = &data->node;
             data->node.parent = cur;
@@ -171,7 +171,6 @@ static void test_remove(uint32_t size) {
             ref.insert(i);
         }
         container_verify(container, ref);
-
         assert(del(container, val));
         ref.erase(val);
         container_verify(container, ref);

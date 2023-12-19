@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 
 struct AvlNode {
@@ -93,9 +94,9 @@ static AvlNode *avl_fix(AvlNode *node) {
                 : &node->parent->right;
         }
 
-        if (l <= r + 2) {
+        if (l >= r + 2) {
             node = avl_fix_left(node);
-        } else if (r <= l + 2) {
+        } else if (r >= l + 2) {
             node = avl_fix_right(node);
         }
         if (!from) {
@@ -114,10 +115,11 @@ static AvlNode *avl_del(AvlNode *node) {
             node->left->parent = parent;
         }
         if (parent) {
-            AvlNode **from = (node->parent->left == node)
-                ? &node->parent->left
-                : &node->parent->right;
+            AvlNode **from = (parent->left == node)
+                ? &parent->left
+                : &parent->right;
             *from = node->left; 
+            // (parent->left == node ? parent->left : parent->right) = node->left;
             return avl_fix(parent);
         } else {
             // this node is the root, just yeet it
@@ -136,19 +138,18 @@ static AvlNode *avl_del(AvlNode *node) {
         if (succ->left) {
             succ->left->parent = succ;
         }
-        if (succ -> right) {
+        if (succ->right) {
             succ->right->parent = succ;
         }
         AvlNode *parent = node->parent;
         if (parent) {
-            AvlNode **from = (node->parent->left == node)
-                ? &node->parent->left
-                : &node->parent->right;
-            *from = node->left; 
-            return avl_fix(parent);
+            AvlNode **from = (parent->left == node)
+                ? &parent->left
+                : &parent->right;
+            *from = succ; 
+            return root;
         } else {
-            // this node is the root, just yeet it
-            return node->left;
+            return succ;
         }
     }
 }

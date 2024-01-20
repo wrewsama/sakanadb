@@ -1,22 +1,4 @@
-#include <stddef.h>
-#include <stdio.h>
-#include <stdint.h>
-
-struct AvlNode {
-   uint32_t depth = 0; 
-   uint32_t cnt = 0;
-   AvlNode *left = NULL;
-   AvlNode *right = NULL;
-   AvlNode *parent = NULL;
-};
-
-static void avl_init(AvlNode *node) {
-    node->depth = 1;
-    node->cnt = 1;
-    node->left = NULL;
-    node->right = NULL;
-    node->parent = NULL;
-}
+#include "avltree.h"
 
 static uint32_t avl_depth(AvlNode *node) {
     return node ? node->depth: 0;

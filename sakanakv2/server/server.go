@@ -12,7 +12,7 @@ func handleCli(conn net.Conn) error {
         return fmt.Errorf("error reading from conn: err=%w", err)
     }
 
-    fmt.Printf("Received: %s", string(buf[:readLen]))
+    fmt.Printf("Received: %s\n", string(buf[:readLen]))
 
     reply := fmt.Sprintf("Echo: %s", string(buf[:readLen]))
     if _, err := conn.Write([]byte(reply)); err != nil {
@@ -32,7 +32,7 @@ func main() {
     }
     defer server.Close()
 
-    fmt.Printf("Listening on host %s with port %d", HOST, PORT)
+    fmt.Printf("Listening on host %s with port %d\n", HOST, PORT)
     for {
         conn, err := server.Accept()
         if err != nil {

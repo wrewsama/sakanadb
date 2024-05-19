@@ -3,23 +3,10 @@ package main
 import (
 	"fmt"
 	"net"
+
+	"github.com/wrewsama/sakanadb/sakanakv2/server/handler"
+	"github.com/wrewsama/sakanadb/sakanakv2/server/tcp"
 )
-
-func handleCli(conn net.Conn) error {
-    buf := make([]byte, 1024)
-    readLen, err := conn.Read(buf)
-    if err != nil {
-        return fmt.Errorf("error reading from conn: err=%w", err)
-    }
-
-    fmt.Printf("Received: %s\n", string(buf[:readLen]))
-
-    reply := fmt.Sprintf("Echo: %s", string(buf[:readLen]))
-    if _, err := conn.Write([]byte(reply)); err != nil {
-        return fmt.Errorf("error writing to conn: err=%w", err)
-    }
-    return nil
-}
 
 func main() {
     // TODO: make these env vars
@@ -33,12 +20,20 @@ func main() {
     defer server.Close()
 
     fmt.Printf("Listening on host %s with port %d\n", HOST, PORT)
+
+    tcpService := tcp.NewTCPService()
+    handler := handler.NewHandler(tcpService)
     for {
         conn, err := server.Accept()
         if err != nil {
             fmt.Printf("Error accepting client connection: err=%+v", err)
         }
+        defer conn.Close()
 
-        handleCli(conn) 
+        for {
+            if err := handler.HandleOneReq(conn); err != nil {
+                break
+            }
+        }
     }
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/wrewsama/sakanadb/sakanakv2/server/tcp"
 )

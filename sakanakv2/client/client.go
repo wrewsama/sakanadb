@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net"
+
+	"github.com/wrewsama/sakanadb/sakanakv2/client/handler"
+	"github.com/wrewsama/sakanadb/sakanakv2/client/tcp"
 )
 
 func main() {
@@ -15,15 +18,18 @@ func main() {
 	}
 	defer conn.Close()
 
-	msg := "xdd"
-	if _, err := conn.Write([]byte(msg)); err != nil {
-        fmt.Printf("Error writing to conn: err=%v", err)
+	tcpSvc := tcp.NewTCPService()
+	handler := handler.NewHandler(tcpSvc)
+
+	msgs := []string{
+		"towa sama",
+		"sora chan",
+		"elite mikochi",
 	}
 
-    buf := make([]byte, 1024)
-    readLen, err := conn.Read(buf)
-    if err != nil {
-        fmt.Printf("error reading from conn: err=%v", err)
-    }
-	fmt.Printf("Received: %s\n", buf[:readLen])
+	for _, msg := range msgs {
+		if err := handler.SendQuery(conn, msg); err != nil {
+			panic(err)
+		}
+	}
 }

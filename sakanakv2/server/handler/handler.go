@@ -33,7 +33,7 @@ func (s *handler) HandleOneReq(conn net.Conn) error {
 	reqLen := binary.LittleEndian.Uint32(headerBytes)
 	reqBytes, err := s.tcpSvc.ReadNBytes(conn, int(reqLen))
 	if err != nil {
-		return fmt.Errorf("failed to read header: err=%w", err)
+		return fmt.Errorf("failed to read body: err=%w", err)
 	}
 	req := string(reqBytes)
 	fmt.Printf("Received: %s\n", req)

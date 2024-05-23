@@ -28,12 +28,20 @@ func main() {
         if err != nil {
             fmt.Printf("Error accepting client connection: err=%+v", err)
         }
-        defer conn.Close()
 
-        for {
-            if err := handler.HandleOneReq(conn); err != nil {
-                break
+        go func(conn net.Conn) {
+            defer func() {
+                if err := recover(); err != nil {
+                    fmt.Printf("Function panicked while handling connection %+v: err=%+v", conn, err)
+                }
+            }()
+            defer conn.Close()
+
+            for {
+                if err := handler.HandleOneReq(conn); err != nil {
+                    break
+                }
             }
-        }
+        }(conn)
     }
 }

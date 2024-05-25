@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/wrewsama/sakanadb/sakanakv2/server/command"
 	"github.com/wrewsama/sakanadb/sakanakv2/server/handler"
+	"github.com/wrewsama/sakanadb/sakanakv2/server/repository"
 	"github.com/wrewsama/sakanadb/sakanakv2/server/tcp"
 )
 
@@ -22,7 +24,9 @@ func main() {
     fmt.Printf("Listening on host %s with port %d\n", HOST, PORT)
 
     tcpService := tcp.NewTCPService()
-    handler := handler.NewHandler(tcpService)
+    cmdReg := command.NewCommandRegistry()
+    repo := repository.NewRepo()
+    handler := handler.NewHandler(tcpService, cmdReg, repo)
     for {
         conn, err := server.Accept()
         if err != nil {
@@ -38,9 +42,7 @@ func main() {
             defer conn.Close()
 
             for {
-                if err := handler.HandleOneReq(conn); err != nil {
-                    break
-                }
+                handler.HandleOneReq(conn)
             }
         }(conn)
     }

@@ -9,10 +9,11 @@ import (
 )
 
 const HEADER_SIZE = 4
-const MAX_MSG_SIZE = 4096
+const LEN_SIZE = 4
+const CODE_SIZE = 4
 
 type Handler interface {
-	SendQuery(conn net.Conn, text string) error
+	HandleQuery(conn net.Conn, args []string) error
 }
 
 type handler struct {
@@ -25,20 +26,22 @@ func NewHandler(tcps tcp.TCPService) Handler {
 	}
 }
 
-func (s *handler) SendQuery(conn net.Conn, text string) error {
-	msgLen := uint32(len(text))
-	if msgLen > MAX_MSG_SIZE {
-		return fmt.Errorf("Message too big!")
-	}
+func (s *handler) HandleQuery(conn net.Conn, args []string) error {
+	numArgs := len(args)	
+	writeBuf := make([]byte, HEADER_SIZE)
+	binary.LittleEndian.PutUint32(writeBuf, uint32(numArgs))
 
-	lenBytes := make([]byte, HEADER_SIZE)
-	binary.LittleEndian.PutUint32(lenBytes, msgLen)
-	writeBuf := append(lenBytes, []byte(text)...)
+	for _, text := range args {
+		lenBytes := make([]byte, HEADER_SIZE)
+		binary.LittleEndian.PutUint32(lenBytes, uint32(len(text)))
+		writeBuf = append(writeBuf, lenBytes...)
+		writeBuf = append(writeBuf, []byte(text)...)
+	}
 	if err := s.tcpSvc.WriteBytes(conn, writeBuf); err != nil {
 		return fmt.Errorf("failed to write reply: err=%w", err)
 	}
 
-	headerBytes, err := s.tcpSvc.ReadNBytes(conn, 4)
+	headerBytes, err := s.tcpSvc.ReadNBytes(conn, HEADER_SIZE)
 	if err != nil {
 		return fmt.Errorf("failed to read header: err=%w", err)
 	}
@@ -48,7 +51,8 @@ func (s *handler) SendQuery(conn net.Conn, text string) error {
 		return fmt.Errorf("failed to read body: err=%w", err)
 	}
 
-	req := string(reqBytes)
-	fmt.Printf("Received: %s\n", req)
+	code := string(reqBytes[:CODE_SIZE])
+	payload := string(reqBytes[CODE_SIZE:])
+	fmt.Printf("[%s] %s", code, payload)
 	return nil
 }

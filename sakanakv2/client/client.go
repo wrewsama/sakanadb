@@ -1,35 +1,44 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 
 	"github.com/wrewsama/sakanadb/sakanakv2/client/handler"
 	"github.com/wrewsama/sakanadb/sakanakv2/client/tcp"
 )
 
+const EXIT_CMD = "exit"
+
 func main() {
-    HOST := "localhost"
-    PORT := 3535
+	HOST := "localhost"
+	PORT := 3535
+
+	fmt.Println("SakanaKV2 shell starting...")
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", HOST, PORT))
 	if err != nil {
-        fmt.Printf("Error connecting: err=%v", err)
+		fmt.Printf("Error connecting: err=%v", err)
 	}
 	defer conn.Close()
 
 	tcpSvc := tcp.NewTCPService()
 	handler := handler.NewHandler(tcpSvc)
+	scanner := bufio.NewScanner(os.Stdin)
 
-	msgs := []string{
-		"towa sama",
-		"sora chan",
-		"elite mikochi",
-	}
+	for {
+		scanner.Scan()
+		fmt.Print("><>")
 
-	for _, msg := range msgs {
-		if err := handler.SendQuery(conn, msg); err != nil {
-			panic(err)
+		input := scanner.Text()
+		if input == EXIT_CMD {
+			fmt.Println("exiting...")
+			break
 		}
+		args := strings.Split(input, " ")
+		handler.HandleQuery(conn, args)
 	}
 }

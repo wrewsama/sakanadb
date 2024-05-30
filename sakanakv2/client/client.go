@@ -30,8 +30,8 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
-		scanner.Scan()
 		fmt.Print("><>")
+		scanner.Scan()
 
 		input := scanner.Text()
 		if input == EXIT_CMD {
@@ -39,6 +39,7 @@ func main() {
 			break
 		}
 		args := strings.Split(input, " ")
+		fmt.Printf("%+v", args)
 		handler.HandleQuery(conn, args)
 	}
 }

@@ -42,7 +42,9 @@ func main() {
             defer conn.Close()
 
             for {
-                handler.HandleOneReq(conn)
+                if err := handler.HandleOneReq(conn); err != nil {
+                    break
+                }
             }
         }(conn)
     }

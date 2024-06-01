@@ -51,8 +51,8 @@ func (s *handler) HandleQuery(conn net.Conn, args []string) error {
 		return fmt.Errorf("failed to read body: err=%w", err)
 	}
 
-	code := string(reqBytes[:CODE_SIZE])
+	code := binary.LittleEndian.Uint32(reqBytes[:CODE_SIZE])
 	payload := string(reqBytes[CODE_SIZE:])
-	fmt.Printf("[%s] %s", code, payload)
+	fmt.Printf("[%d] %s\n", code, payload)
 	return nil
 }

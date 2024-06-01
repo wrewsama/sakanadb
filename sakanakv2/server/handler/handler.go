@@ -56,7 +56,6 @@ func (s *handler) readReq(conn net.Conn) ([]string, error) {
 			return nil, fmt.Errorf("failed to read len: err=%w", err)
 		}
 		strLen := binary.LittleEndian.Uint32(lenBytes)
-		fmt.Printf("arg %d has len %d\n", i, strLen)
 
 		strBytes, err := s.tcpSvc.ReadNBytes(conn, int(strLen))
 		if err != nil {
@@ -70,20 +69,19 @@ func (s *handler) readReq(conn net.Conn) ([]string, error) {
 	return reqStrs, nil
 }
 
-func (s *handler) writeResp(conn net.Conn, resp command.CommandResp) error {
+func (s *handler) writeResp(conn net.Conn, resp command.CommandResp) {
 	codeBytes := make([]byte, RESPCODE_SIZE)
 	binary.LittleEndian.PutUint32(codeBytes, uint32(resp.Code))	
 	payloadBytes := []byte(fmt.Sprintf("%v", resp.Payload))
 	lenBytes := make([]byte, LEN_SIZE)
 	binary.LittleEndian.PutUint32(
-		codeBytes, uint32(len(payloadBytes) + len(codeBytes)))	
+		lenBytes, uint32(len(payloadBytes) + len(codeBytes)))	
 
 	respBytes := append(lenBytes, codeBytes...)
 	respBytes = append(respBytes, payloadBytes...)
 	if err := s.tcpSvc.WriteBytes(conn, respBytes); err != nil {
-		return fmt.Errorf("error writing to TCP: err=%w", err)
+		fmt.Printf("error writing to TCP: err=%v\n", err)
 	}
-	return nil
 }
 
 func (s *handler) handleErr(conn net.Conn, err error) {
@@ -110,7 +108,9 @@ func (s *handler) HandleOneReq(conn net.Conn) error {
 
 	cmd, ok := s.cmdReg[reqStrs[0]]
 	if !ok {
-		s.handleErr(conn, fmt.Errorf("command %s not supported", reqStrs[0]))
+		notFoundErr := fmt.Errorf("command %s not supported", reqStrs[0])
+		s.handleErr(conn, notFoundErr)
+		return nil 
 	}
 
 	resp := cmd.Execute(reqStrs, s.repo)

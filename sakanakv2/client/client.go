@@ -30,7 +30,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
-		fmt.Print("><>")
+		fmt.Print("\n><>")
 		scanner.Scan()
 
 		input := scanner.Text()
@@ -39,7 +39,6 @@ func main() {
 			break
 		}
 		args := strings.Split(input, " ")
-		fmt.Printf("%+v", args)
 		handler.HandleQuery(conn, args)
 	}
 }

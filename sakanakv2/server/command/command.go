@@ -62,6 +62,12 @@ func (*delete) Execute(args []string, repo repository.Repository) (CommandResp) 
 			Code: RESP_Err,
 		}
 	}
+	if _, ok := repo.Get(args[1]); !ok {
+		return CommandResp{
+			Code: RESP_DoesNotExist,
+		}
+	}
+
 	repo.Delete(args[1])
 
 	return CommandResp{

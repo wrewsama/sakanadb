@@ -36,5 +36,22 @@ func Test_CmdRegistry(t *testing.T) {
 			})
 
 		})
+
+		Convey("test set", func() {
+			Convey("not 3 args", func() {
+				resp := cmdReg["set"].Execute([]string{}, nil)
+
+				So(resp, ShouldResemble, CommandResp{Code: RESP_Err})
+			})
+			Convey("ok", func() {
+				mockRepo := Mock[repository.Repository]()
+
+				resp := cmdReg["set"].Execute([]string{"set", "key", "val"}, mockRepo)
+
+				So(resp, ShouldResemble, CommandResp{Code: RESP_OK})
+				Verify(mockRepo, Once()).Set(Equal("key"), Equal("val"))
+			})
+
+		})
 	})	
 }

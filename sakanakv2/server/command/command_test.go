@@ -53,5 +53,32 @@ func Test_CmdRegistry(t *testing.T) {
 			})
 
 		})
+
+		Convey("test delete", func() {
+			Convey("not 2 args", func() {
+				resp := cmdReg["delete"].Execute([]string{}, nil)
+
+				So(resp, ShouldResemble, CommandResp{Code: RESP_Err})
+			})
+			Convey("not found", func() {
+				mockRepo := Mock[repository.Repository]()
+				WhenDouble(mockRepo.Get("key")).ThenReturn(nil, false)
+
+				resp := cmdReg["delete"].Execute([]string{"xdd", "key"}, mockRepo)
+
+				So(resp, ShouldResemble, CommandResp{Code: RESP_DoesNotExist})
+			})
+			Convey("ok", func() {
+				mockRepo := Mock[repository.Repository]()
+				WhenDouble(mockRepo.Get("key")).ThenReturn(nil, true)
+
+				resp := cmdReg["delete"].Execute([]string{"xdd", "key"}, mockRepo)
+
+				So(resp, ShouldResemble, CommandResp{Code: RESP_OK})
+				Verify(mockRepo, Once()).Get("key")
+				Verify(mockRepo, Once()).Delete("key")
+			})
+
+		})
 	})	
 }

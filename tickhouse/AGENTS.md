@@ -7,7 +7,7 @@ A columnar time-series database for L1 market data (OHLCV bars). Two independent
 - `tickhouse/` — TCP server
 - `tickhouse-repl/` — REPL client
 
-**Status: skeleton only.** Both packages contain stub `main()` functions. No business logic, no tests, no external dependencies exist yet.
+**Status: MVP complete.** Both packages are fully implemented with tests passing.
 
 ## Toolchain
 
@@ -35,7 +35,7 @@ uv sync
 # Add a dependency
 uv add <package>
 
-# Run tests (once pytest is added)
+# Run tests
 uv run pytest
 uv run pytest tests/path/to/test_file.py::test_name  # focused
 ```
@@ -47,9 +47,11 @@ uv run pytest tests/path/to/test_file.py::test_name  # focused
 - No CI exists for this project. The only CI (`/.github/workflows/go.yml`) targets `sakanakv2`.
 - No linter, formatter, or type checker is configured yet. When adding tools (ruff, mypy, etc.), configure them under `[tool.*]` in `pyproject.toml`.
 
-## Testing setup (not yet done — do it this way)
+## Testing setup
 
-When creating tests, add to `pyproject.toml`:
+Both packages have `pytest` configured. Tests live in `tests/` inside each package directory.
+
+The `pyproject.toml` in each package already includes:
 
 ```toml
 [tool.pytest.ini_options]
@@ -66,3 +68,39 @@ This is required because of the `src`-layout — pytest won't find the package o
 - Planned storage iterations: naive Parquet → custom column-store → delta compression → XOR float compression. Each iteration benchmarks 1M record insert and sub-1s query against total file size.
 
 See `docs/design.md`, `docs/plans.md`, and `docs/prd.md` for full specs.
+
+## Source layout (MVP)
+
+```
+tickhouse/src/tickhouse/
+  __init__.py          # CLI entry point (--host, --port, --data-dir)
+  server.py            # TCP accept loop; one daemon thread per client
+  protocol.py          # send_message / recv_message (4-byte length prefix)
+  parser.py            # parse(sql) -> CreateCommand | InsertCommand | QueryCommand
+  service.py           # TickhouseService — dispatches commands, restores tables on restart
+  storage/
+    table.py           # Table ABC
+    parquet_table.py   # MVP: one Parquet file per insert; data at ./data/<table>/
+
+tickhouse-repl/src/tickhouse_repl/
+  __init__.py          # CLI entry point (--host, --port)
+  repl.py              # readline loop, tabular output
+  protocol.py          # same framing helpers (stdlib-only)
+```
+
+## Binary protocol
+
+Every message in both directions:
+
+```
+[4 bytes: big-endian uint32 payload length][N bytes: UTF-8 payload]
+```
+
+- **Request** (REPL → server): raw SQL string
+- **Response** (server → REPL): JSON — `{"status": "ok", "data": [...]}` or `{"status": "error", "message": "..."}`
+
+## Default connection
+
+- Server binds `0.0.0.0:7474`
+- REPL connects to `127.0.0.1:7474`
+- Data stored under `./data/<table_name>/` relative to the server's working directory

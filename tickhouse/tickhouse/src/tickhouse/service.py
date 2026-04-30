@@ -45,16 +45,7 @@ class TickhouseService:
             if isinstance(command, CreateCommand):
                 return self.create(command.table)
             if isinstance(command, InsertCommand):
-                return self.insert(
-                    command.table,
-                    command.date,
-                    command.symbol,
-                    command.open,
-                    command.high,
-                    command.low,
-                    command.close,
-                    command.volume,
-                )
+                return self.insert(command)
             if isinstance(command, QueryCommand):
                 return self.query(
                     command.table,
@@ -76,28 +67,11 @@ class TickhouseService:
         self._tables[table_name] = table
         return {"status": "ok", "message": f"Table '{table_name}' created."}
 
-    def insert(
-        self,
-        table_name: str,
-        date: str,
-        symbol: str,
-        open: float,
-        high: float,
-        low: float,
-        close: float,
-        volume: int,
-    ) -> dict[str, Any]:
-        table = self._get_table(table_name)
-        table.insert(
-            date=date,
-            symbol=symbol,
-            open=open,
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-        )
-        return {"status": "ok", "message": "1 row inserted."}
+    def insert(self, command: InsertCommand) -> dict[str, Any]:
+        table = self._get_table(command.table)
+        table.insert_many(command.rows)
+        n = len(command.rows)
+        return {"status": "ok", "message": f"{n} row(s) inserted."}
 
     def query(
         self,

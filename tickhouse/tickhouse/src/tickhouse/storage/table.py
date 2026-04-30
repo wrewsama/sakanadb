@@ -4,7 +4,10 @@ Abstract base class for all Table storage implementations.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from tickhouse.parser import InsertRow
 
 
 class Table(ABC):
@@ -21,17 +24,14 @@ class Table(ABC):
         ...
 
     @abstractmethod
-    def insert(
-        self,
-        date: str,
-        symbol: str,
-        open: float,
-        high: float,
-        low: float,
-        close: float,
-        volume: int,
-    ) -> None:
-        """Persist a single OHLCV bar."""
+    def insert_many(self, rows: list[InsertRow]) -> None:
+        """
+        Persist one or more OHLCV bars atomically.
+
+        A single-row insert is the degenerate case: ``rows`` has one element.
+        Implementations should write all rows in a single batch operation where
+        possible (e.g. one Parquet file per call).
+        """
         ...
 
     @abstractmethod

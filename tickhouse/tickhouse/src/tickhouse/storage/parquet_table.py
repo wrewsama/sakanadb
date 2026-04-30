@@ -4,7 +4,7 @@ MVP storage implementation: naive Parquet files.
 Layout
 ------
 <data_dir>/<table_name>/
-    chunk_<n>.parquet     one file per insert call (for now)
+    chunk_<n>.parquet     one file per insert_many call
 
 Query
 -----
@@ -15,12 +15,15 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from tickhouse.storage.table import Table
+
+if TYPE_CHECKING:
+    from tickhouse.parser import InsertRow
 
 # Schema used for every Parquet file written by this implementation.
 _SCHEMA = pa.schema(
@@ -42,9 +45,9 @@ class ParquetTable(Table):
     """
     Naive Parquet-backed table.
 
-    Each :meth:`insert` call writes exactly one Parquet file.  This is
-    intentionally simple for the MVP; later iterations will batch rows and
-    use a proper merge-tree layout.
+    Each :meth:`insert_many` call writes exactly one Parquet file containing
+    all supplied rows.  This is intentionally simple for the MVP; later
+    iterations will use a proper merge-tree layout.
     """
 
     def __init__(self, name: str, data_dir: str | Path = "data") -> None:
@@ -55,26 +58,22 @@ class ParquetTable(Table):
         """Create the on-disk directory for this table (idempotent)."""
         self._dir.mkdir(parents=True, exist_ok=True)
 
-    def insert(
-        self,
-        date: str,
-        symbol: str,
-        open: float,
-        high: float,
-        low: float,
-        close: float,
-        volume: int,
-    ) -> None:
+    def insert_many(self, rows: list[InsertRow]) -> None:
+        """
+        Persist one or more OHLCV bars in a single Parquet file.
+
+        A single-row insert is the degenerate case: ``rows`` has one element.
+        """
         self._ensure_exists()
         table = pa.table(
             {
-                "date":   [date],
-                "symbol": [symbol],
-                "open":   [float(open)],
-                "high":   [float(high)],
-                "low":    [float(low)],
-                "close":  [float(close)],
-                "volume": [int(volume)],
+                "date":   [r.date   for r in rows],
+                "symbol": [r.symbol for r in rows],
+                "open":   [float(r.open)   for r in rows],
+                "high":   [float(r.high)   for r in rows],
+                "low":    [float(r.low)    for r in rows],
+                "close":  [float(r.close)  for r in rows],
+                "volume": [int(r.volume)   for r in rows],
             },
             schema=_SCHEMA,
         )

@@ -6,10 +6,14 @@ Supported syntax
 CREATE TABLE <name>
 
 INSERT INTO <name> VALUES (<date>, <symbol>, <open>, <high>, <low>, <close>, <volume>)
+  [, (<date>, <symbol>, <open>, <high>, <low>, <close>, <volume>)] ...
+
   - date:   YYYY-MM-DD  (quoted or unquoted)
   - symbol: string      (quoted or unquoted)
   - open/high/low/close: float
   - volume: integer
+
+  A single-row insert is just the degenerate case of a bulk insert.
 
 SELECT <col1>[, <col2>, ...] FROM <name>
     WHERE symbol = '<sym>'
@@ -22,7 +26,8 @@ Column list may be '*' to mean all columns.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
 
 @dataclass
 class CreateCommand:
@@ -30,8 +35,7 @@ class CreateCommand:
 
 
 @dataclass
-class InsertCommand:
-    table: str
+class InsertRow:
     date: str
     symbol: str
     open: float
@@ -42,12 +46,18 @@ class InsertCommand:
 
 
 @dataclass
+class InsertCommand:
+    table: str
+    rows: list[InsertRow]
+
+
+@dataclass
 class QueryCommand:
     table: str
     columns: list[str]          # ["*"] means all columns
     symbol: str
-    date_gte: str | None = None  # inclusive lower bound  (>= )
-    date_lte: str | None = None  # inclusive upper bound  (<= )
+    date_gte: str | None = None  # inclusive lower bound  (>=)
+    date_lte: str | None = None  # inclusive upper bound  (<=)
 
 
 Command = CreateCommand | InsertCommand | QueryCommand
@@ -69,8 +79,9 @@ _RE_CREATE = re.compile(
     re.IGNORECASE,
 )
 
+# Captures the table name and everything after VALUES (the raw row list).
 _RE_INSERT = re.compile(
-    r"^\s*INSERT\s+INTO\s+(\w+)\s+VALUES\s*\((.+)\)\s*$",
+    r"^\s*INSERT\s+INTO\s+(\w+)\s+VALUES\s*(.+)\s*$",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -92,6 +103,49 @@ _RE_DATE_LTE = re.compile(
     re.IGNORECASE,
 )
 
+# Splits "(...), (...), ..." into the individual parenthesised groups.
+_RE_ROW_SPLIT = re.compile(r"\(([^)]+)\)")
+
+
+def _parse_row(raw: str, row_index: int) -> InsertRow:
+    """
+    Parse a single comma-separated row string into an InsertRow.
+
+    *raw* is the text *inside* the parentheses, e.g.::
+
+        '2024-01-02', AAPL, 185.20, 186.10, 184.90, 185.85, 50123400
+
+    Raises ValueError with a descriptive message on failure.
+    """
+    parts = [p.strip() for p in raw.split(",")]
+    if len(parts) != 7:
+        raise ValueError(
+            f"Row {row_index}: INSERT expects 7 values "
+            f"(date, symbol, open, high, low, close, volume), "
+            f"got {len(parts)}: {raw!r}"
+        )
+    date_val   = _unquote(parts[0])
+    symbol_val = _unquote(parts[1])
+    try:
+        open_val   = float(parts[2])
+        high_val   = float(parts[3])
+        low_val    = float(parts[4])
+        close_val  = float(parts[5])
+        volume_val = int(parts[6])
+    except ValueError as exc:
+        raise ValueError(
+            f"Row {row_index}: invalid numeric value in INSERT: {exc}"
+        ) from exc
+    return InsertRow(
+        date=date_val,
+        symbol=symbol_val,
+        open=open_val,
+        high=high_val,
+        low=low_val,
+        close=close_val,
+        volume=volume_val,
+    )
+
 
 def parse(sql: str) -> Command:
     """
@@ -110,33 +164,17 @@ def parse(sql: str) -> Command:
     m = _RE_INSERT.match(sql)
     if m:
         table = m.group(1)
-        raw_values = m.group(2)
-        parts = [p.strip() for p in raw_values.split(",")]
-        if len(parts) != 7:
+        raw_after_values = m.group(2).strip()
+
+        row_matches = _RE_ROW_SPLIT.findall(raw_after_values)
+        if not row_matches:
             raise ValueError(
-                f"INSERT expects 7 values (date, symbol, open, high, low, close, volume), "
-                f"got {len(parts)}: {raw_values!r}"
+                f"INSERT VALUES clause contains no valid row groups: "
+                f"{raw_after_values!r}"
             )
-        date_val   = _unquote(parts[0])
-        symbol_val = _unquote(parts[1])
-        try:
-            open_val   = float(parts[2])
-            high_val   = float(parts[3])
-            low_val    = float(parts[4])
-            close_val  = float(parts[5])
-            volume_val = int(parts[6])
-        except ValueError as exc:
-            raise ValueError(f"Invalid numeric value in INSERT: {exc}") from exc
-        return InsertCommand(
-            table=table,
-            date=date_val,
-            symbol=symbol_val,
-            open=open_val,
-            high=high_val,
-            low=low_val,
-            close=close_val,
-            volume=volume_val,
-        )
+
+        rows = [_parse_row(raw, i + 1) for i, raw in enumerate(row_matches)]
+        return InsertCommand(table=table, rows=rows)
 
     # --- SELECT ---
     m = _RE_SELECT.match(sql)

@@ -26,7 +26,7 @@ Column list may be '*' to mean all columns.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -56,8 +56,8 @@ class QueryCommand:
     table: str
     columns: list[str]          # ["*"] means all columns
     symbol: str
-    date_gte: str | None = None  # inclusive lower bound  (>=)
-    date_lte: str | None = None  # inclusive upper bound  (<=)
+    date_gte: str | None = None
+    date_lte: str | None = None
 
 
 Command = CreateCommand | InsertCommand | QueryCommand
@@ -79,7 +79,6 @@ _RE_CREATE = re.compile(
     re.IGNORECASE,
 )
 
-# Captures the table name and everything after VALUES (the raw row list).
 _RE_INSERT = re.compile(
     r"^\s*INSERT\s+INTO\s+(\w+)\s+VALUES\s*(.+)\s*$",
     re.IGNORECASE | re.DOTALL,
@@ -103,7 +102,6 @@ _RE_DATE_LTE = re.compile(
     re.IGNORECASE,
 )
 
-# Splits "(...), (...), ..." into the individual parenthesised groups.
 _RE_ROW_SPLIT = re.compile(r"\(([^)]+)\)")
 
 
@@ -155,12 +153,10 @@ def parse(sql: str) -> Command:
     """
     sql = sql.strip()
 
-    # --- CREATE ---
     m = _RE_CREATE.match(sql)
     if m:
         return CreateCommand(table=m.group(1))
 
-    # --- INSERT ---
     m = _RE_INSERT.match(sql)
     if m:
         table = m.group(1)
@@ -176,24 +172,20 @@ def parse(sql: str) -> Command:
         rows = [_parse_row(raw, i + 1) for i, raw in enumerate(row_matches)]
         return InsertCommand(table=table, rows=rows)
 
-    # --- SELECT ---
     m = _RE_SELECT.match(sql)
     if m:
         col_str   = m.group(1).strip()
         table     = m.group(2)
         where_str = m.group(3)
 
-        # Columns
         if col_str == "*":
             columns = ["*"]
         else:
             columns = [c.strip() for c in col_str.split(",")]
 
-        # WHERE: symbol is mandatory
         sym_m = _RE_SYMBOL_COND.search(where_str)
         if not sym_m:
             raise ValueError("SELECT WHERE clause must contain `symbol = '<value>'`")
-        # group(1) is the full match token; groups 2/3 are the quoted sub-groups
         symbol = _unquote(sym_m.group(1))
 
         date_gte = None

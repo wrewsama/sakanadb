@@ -25,10 +25,14 @@ uv run pytest
 Run a single test file:
 
 ```bash
+# Server
 uv run pytest tests/test_parser.py
 uv run pytest tests/test_parquet_table.py
 uv run pytest tests/test_service.py
+
+# REPL
 uv run pytest tests/test_protocol.py
+uv run pytest tests/test_copy.py
 ```
 
 Run a single test class:
@@ -37,6 +41,9 @@ Run a single test class:
 uv run pytest tests/test_parser.py::TestCreate
 uv run pytest tests/test_parquet_table.py::TestInsertQuery
 uv run pytest tests/test_service.py::TestQuery
+uv run pytest tests/test_copy.py::TestBuildInsertSql
+uv run pytest tests/test_copy.py::TestCopyRegex
+uv run pytest tests/test_copy.py::TestHandleCopy
 ```
 
 Run a single test by name:
@@ -45,6 +52,8 @@ Run a single test by name:
 uv run pytest tests/test_service.py::TestQuery::test_restart_restores_tables
 uv run pytest tests/test_parquet_table.py::TestInsertQuery::test_date_range_filter
 uv run pytest tests/test_parser.py::TestSelect::test_select_star
+uv run pytest tests/test_copy.py::TestHandleCopy::test_sends_insert_and_prints_response
+uv run pytest tests/test_copy.py::TestBuildInsertSql::test_multiple_rows
 ```
 
 ---
@@ -99,5 +108,22 @@ SELECT date, close, volume FROM bars WHERE symbol = 'AAPL' AND date >= '2024-01-
 
 SELECT * FROM bars WHERE symbol = 'MSFT' AND date >= '2024-01-01' AND date <= '2024-12-31'
 ```
+
+Bulk-insert from a JSON file using the client-side `COPY` command:
+
+```sql
+COPY bars FROM '/path/to/raw_data.json'
+```
+
+The file must be a JSON array of bar objects with the keys `date`, `symbol`, `open`, `high`, `low`, `close`, `volume`:
+
+```json
+[
+  {"date": "2024-01-02", "symbol": "AAPL", "open": 185.20, "high": 186.10, "low": 184.90, "close": 185.85, "volume": 50123400},
+  {"date": "2024-01-03", "symbol": "AAPL", "open": 184.50, "high": 185.75, "low": 183.80, "close": 184.25, "volume": 48201000}
+]
+```
+
+`COPY` is handled entirely client-side — all rows are sent to the server in a single `INSERT` statement.
 
 Exit the REPL with `\q`, `quit`, `exit`, or Ctrl-D.

@@ -9,10 +9,6 @@ from tickhouse.parser import (
 )
 
 
-# ---------------------------------------------------------------------------
-# CREATE TABLE
-# ---------------------------------------------------------------------------
-
 class TestCreate:
     def test_basic(self):
         cmd = parse("CREATE TABLE my_table")
@@ -30,10 +26,6 @@ class TestCreate:
         assert cmd.table == "stocks"
 
 
-# ---------------------------------------------------------------------------
-# INSERT INTO
-# ---------------------------------------------------------------------------
-
 class TestInsert:
     """Single-row inserts are the degenerate case of a bulk insert."""
 
@@ -47,6 +39,7 @@ class TestInsert:
 
     def test_single_row_fields(self):
         cmd = parse(self._SQL)
+        assert isinstance(cmd, InsertCommand)
         row = cmd.rows[0]
         assert isinstance(row, InsertRow)
         assert row.date == "2026-01-01"
@@ -85,10 +78,12 @@ class TestBulkInsert:
 
     def test_two_rows(self):
         cmd = parse(self._SQL)
+        assert isinstance(cmd, InsertCommand)
         assert len(cmd.rows) == 2
 
     def test_row_values(self):
         cmd = parse(self._SQL)
+        assert isinstance(cmd, InsertCommand)
         r0, r1 = cmd.rows
 
         assert r0.date == "2024-01-02"
@@ -109,6 +104,7 @@ class TestBulkInsert:
             "('2024-01-03', 'MSFT', 300.0, 305.0, 299.0, 302.0, 200)"
         )
         cmd = parse(sql)
+        assert isinstance(cmd, InsertCommand)
         assert len(cmd.rows) == 2
         assert cmd.rows[0].symbol == "AAPL"
         assert cmd.rows[1].symbol == "MSFT"
@@ -116,6 +112,7 @@ class TestBulkInsert:
     def test_single_row_is_still_list(self):
         sql = "INSERT INTO bars VALUES (2024-01-02, AAPL, 1.0, 2.0, 0.5, 1.5, 100)"
         cmd = parse(sql)
+        assert isinstance(cmd, InsertCommand)
         assert len(cmd.rows) == 1
 
     def test_wrong_value_count_in_second_row(self):
@@ -137,10 +134,6 @@ class TestBulkInsert:
             parse(sql)
 
 
-# ---------------------------------------------------------------------------
-# SELECT
-# ---------------------------------------------------------------------------
-
 class TestSelect:
     def test_star(self):
         cmd = parse("SELECT * FROM tbl WHERE symbol = 'AAPL'")
@@ -152,16 +145,19 @@ class TestSelect:
 
     def test_specific_columns(self):
         cmd = parse("SELECT date, close FROM tbl WHERE symbol = 'TSLA'")
+        assert isinstance(cmd, QueryCommand)
         assert cmd.columns == ["date", "close"]
         assert cmd.symbol == "TSLA"
 
     def test_date_gte(self):
         cmd = parse("SELECT * FROM tbl WHERE symbol = 'X' AND date >= '2026-01-01'")
+        assert isinstance(cmd, QueryCommand)
         assert cmd.date_gte == "2026-01-01"
         assert cmd.date_lte is None
 
     def test_date_lte(self):
         cmd = parse("SELECT * FROM tbl WHERE symbol = 'X' AND date <= '2026-12-31'")
+        assert isinstance(cmd, QueryCommand)
         assert cmd.date_lte == "2026-12-31"
 
     def test_date_range(self):
@@ -169,6 +165,7 @@ class TestSelect:
             "SELECT * FROM tbl WHERE symbol = 'X' "
             "AND date >= '2026-01-01' AND date <= '2026-06-30'"
         )
+        assert isinstance(cmd, QueryCommand)
         assert cmd.date_gte == "2026-01-01"
         assert cmd.date_lte == "2026-06-30"
 
@@ -177,9 +174,6 @@ class TestSelect:
             parse("SELECT * FROM tbl WHERE date >= '2026-01-01'")
 
 
-# ---------------------------------------------------------------------------
-# Unknown command
-# ---------------------------------------------------------------------------
 
 def test_unknown_command():
     with pytest.raises(ValueError, match="Unrecognised"):

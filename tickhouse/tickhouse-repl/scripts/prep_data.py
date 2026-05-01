@@ -11,7 +11,7 @@ def main():
         timeseries = data["Time Series (Daily)"]
         for time, bar in timeseries.items():
             flattened_bar = {
-                "time": time,
+                "date": time,
                 "symbol": symbol,
                 "open": bar["1. open"],
                 "high": bar["2. high"],

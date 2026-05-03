@@ -15,8 +15,6 @@ Client-side commands (not sent to server)
         date, symbol, open, high, low, close, volume.
         All rows are sent in a single INSERT statement.
 """
-from __future__ import annotations
-
 import json
 import re
 import socket

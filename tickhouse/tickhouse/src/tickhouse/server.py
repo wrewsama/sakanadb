@@ -5,8 +5,6 @@ Wire format (length-prefixed):
     Request:  [4-byte len][UTF-8 SQL string]
     Response: [4-byte len][UTF-8 JSON]
 """
-from __future__ import annotations
-
 import json
 import socket
 import threading

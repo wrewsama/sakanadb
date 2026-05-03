@@ -10,20 +10,17 @@ Query
 -----
 Reads all chunk files, concatenates, filters in-memory.  No indexing.
 """
-from __future__ import annotations
-
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from tickhouse.storage.table import Table
+from tickhouse.parser import InsertRow
 
-if TYPE_CHECKING:
-    from tickhouse.parser import InsertRow
 
 # Schema used for every Parquet file written by this implementation.
 _SCHEMA = pa.schema(

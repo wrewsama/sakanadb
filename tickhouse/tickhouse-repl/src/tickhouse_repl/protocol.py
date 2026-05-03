@@ -4,8 +4,6 @@ Binary protocol helpers (REPL side — mirrors tickhouse/protocol.py).
 Wire format (both directions):
     [4 bytes big-endian uint32: payload length][N bytes: UTF-8 payload]
 """
-from __future__ import annotations
-
 import socket
 import struct
 

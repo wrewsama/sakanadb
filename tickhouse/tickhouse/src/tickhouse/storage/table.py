@@ -1,13 +1,10 @@
 """
 Abstract base class for all Table storage implementations.
 """
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import Any
+from tickhouse.parser import InsertRow
 
-if TYPE_CHECKING:
-    from tickhouse.parser import InsertRow
 
 
 class Table(ABC):

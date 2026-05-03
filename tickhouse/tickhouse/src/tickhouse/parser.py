@@ -23,8 +23,6 @@ SELECT <col1>[, <col2>, ...] FROM <name>
 The WHERE clause must contain at least `symbol = '<sym>'`.
 Column list may be '*' to mean all columns.
 """
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 

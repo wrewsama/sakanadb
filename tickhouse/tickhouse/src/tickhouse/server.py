@@ -14,6 +14,7 @@ from pathlib import Path
 from tickhouse.parser import parse
 from tickhouse.protocol import recv_message, send_message
 from tickhouse.service import TickhouseService
+from tickhouse.storage.naive_columnar_table import NaiveColumnarTable
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ def start(
 
     Each client connection is handled in its own daemon thread.
     """
-    service = TickhouseService(data_dir=data_dir)
+    service = TickhouseService(data_dir=data_dir, table_class=NaiveColumnarTable)
 
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

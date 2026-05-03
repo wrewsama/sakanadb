@@ -148,6 +148,11 @@ class NaiveColumnarTable(Table):
         self._name = name
         self._dir = Path(data_dir) / name
 
+    @classmethod
+    def restore(cls, name: str, data_dir: str | Path = "data") -> "NaiveColumnarTable":
+        """Re-open an existing columnar table directory without running create()."""
+        return cls(name=name, data_dir=data_dir)
+
     # ------------------------------------------------------------------
     # Table ABC
     # ------------------------------------------------------------------

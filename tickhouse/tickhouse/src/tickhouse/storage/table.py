@@ -2,6 +2,7 @@
 Abstract base class for all Table storage implementations.
 """
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 from tickhouse.parser import InsertRow
 
@@ -14,6 +15,18 @@ class Table(ABC):
     Every concrete implementation must store OHLCV bar data and support
     the three operations below.
     """
+
+    @classmethod
+    @abstractmethod
+    def restore(cls, name: str, data_dir: str | Path) -> "Table":
+        """
+        Re-open an existing on-disk table without running :meth:`create`.
+
+        Called on service startup to re-hydrate tables that were created in a
+        previous process.  Implementations should not perform any I/O that
+        requires the table to be in a specific state beyond existing on disk.
+        """
+        ...
 
     @abstractmethod
     def create(self) -> None:

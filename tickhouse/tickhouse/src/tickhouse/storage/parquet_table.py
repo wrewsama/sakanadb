@@ -51,6 +51,11 @@ class ParquetTable(Table):
         self._name = name
         self._dir = Path(data_dir) / name
 
+    @classmethod
+    def restore(cls, name: str, data_dir: str | Path = "data") -> "ParquetTable":
+        """Re-open an existing Parquet table directory without running create()."""
+        return cls(name=name, data_dir=data_dir)
+
     def create(self) -> None:
         """Create the on-disk directory for this table (idempotent)."""
         self._dir.mkdir(parents=True, exist_ok=True)

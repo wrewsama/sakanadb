@@ -21,10 +21,21 @@ class TickhouseService:
     data_dir:
         Root directory under which table data is stored.
         Defaults to ``./data`` (relative to the process working directory).
+    table_class:
+        The :class:`~tickhouse.storage.Table` implementation to use for all
+        tables managed by this service instance.  Defaults to
+        :class:`~tickhouse.storage.ParquetTable`.  Any subclass that
+        implements the full ``Table`` ABC (including ``restore``) can be
+        substituted here without changes to this service.
     """
 
-    def __init__(self, data_dir: str | Path = "data") -> None:
+    def __init__(
+        self,
+        data_dir: str | Path = "data",
+        table_class: type[Table] = ParquetTable,
+    ) -> None:
         self._data_dir = Path(data_dir)
+        self._table_class = table_class
         # In-memory registry: table_name -> Table instance.
         # Populated lazily on CREATE; restored on startup by scanning data_dir.
         self._tables: dict[str, Table] = {}
@@ -59,7 +70,7 @@ class TickhouseService:
     def create(self, table_name: str) -> dict[str, Any]:
         if table_name in self._tables:
             return {"status": "error", "message": f"Table '{table_name}' already exists."}
-        table = ParquetTable(name=table_name, data_dir=self._data_dir)
+        table = self._table_class(name=table_name, data_dir=self._data_dir)
         table.create()
         self._tables[table_name] = table
         return {"status": "ok", "message": f"Table '{table_name}' created."}
@@ -101,5 +112,5 @@ class TickhouseService:
             return
         for entry in self._data_dir.iterdir():
             if entry.is_dir():
-                table = ParquetTable(name=entry.name, data_dir=self._data_dir)
+                table = self._table_class.restore(name=entry.name, data_dir=self._data_dir)
                 self._tables[entry.name] = table
